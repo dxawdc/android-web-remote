@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 深色底让图标在浅色、深色桌面上都有足够对比度 -->
+    <path
+        android:fillColor="#0B1220"
+        android:pathData="M19,4h70c8.3,0 15,6.7 15,15v70c0,8.3 -6.7,15 -15,15h-70c-8.3,0 -15,-6.7 -15,-15v-70c0,-8.3 6.7,-15 15,-15z" />
+    <path
+        android:fillColor="#1769E8"
+        android:pathData="M23,11h62c6.6,0 12,5.4 12,12v62c0,6.6 -5.4,12 -12,12h-62c-6.6,0 -12,-5.4 -12,-12v-62c0,-6.6 5.4,-12 12,-12z" />
+
+    <!-- 手机主体 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,19h30c5.5,0 10,4.5 10,10v50c0,5.5 -4.5,10 -10,10h-30c-5.5,0 -10,-4.5 -10,-10v-50c0,-5.5 4.5,-10 10,-10z" />
+    <path
+        android:fillColor="#102A56"
+        android:pathData="M36,27h30c1.1,0 2,0.9 2,2v43c0,1.1 -0.9,2 -2,2h-30c-1.1,0 -2,-0.9 -2,-2v-43c0,-1.1 0.9,-2 2,-2z" />
+    <path
+        android:fillColor="#7DE3FF"
+        android:pathData="M45,22h12c1.1,0 2,0.9 2,2s-0.9,2 -2,2h-12c-1.1,0 -2,-0.9 -2,-2s0.9,-2 2,-2z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,78a3,3 0,1 0,6 0a3,3 0,1 0,-6 0" />
+
+    <!-- 远程连接节点 -->
+    <path
+        android:fillColor="#7DE3FF"
+        android:pathData="M79,35h7v7h-7zM88,45h7v7h-7zM79,55h7v7h-7z" />
+    <path
+        android:fillColor="#B7F2FF"
+        android:pathData="M75,39h6v3h-6zM75,49h15v3h-15zM75,59h6v3h-6z" />
+
+    <!-- 轻量指针，表达远程操作 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M79,68l17,11 -8,2 4,9 -5,2 -4,-9 -6,5z" />
+</vector>

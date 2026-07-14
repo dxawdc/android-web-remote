@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/surface">
+  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/app_name" android:textColor="@color/text" android:textSize="26sp" android:textStyle="bold" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/intro" android:textColor="@color/muted" android:textSize="15sp" />
+    <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:background="@android:color/white" android:padding="18dp" android:text="@string/status_waiting" android:textColor="@color/text" android:textSize="16sp" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="26dp" android:text="@string/server_address" android:textColor="@color/text" android:textStyle="bold" />
+    <EditText android:id="@+id/serverUrl" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="8dp" android:autofillHints="none" android:background="@android:color/white" android:hint="@string/server_hint" android:inputType="textUri" android:paddingHorizontal="14dp" android:singleLine="true" android:textColor="@color/text" android:textColorHint="@color/muted" />
+    <Button android:id="@+id/save" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="12dp" android:backgroundTint="@color/blue" android:text="@string/save_reconnect" android:textColor="@android:color/white" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="26dp" android:text="@string/browser_connection" android:textColor="@color/text" android:textStyle="bold" />
+    <TextView android:id="@+id/deviceId" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:background="@android:color/white" android:padding="16dp" android:textColor="@color/text" android:textIsSelectable="true" />
+    <TextView android:id="@+id/accessKey" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:background="@android:color/white" android:padding="16dp" android:textColor="@color/text" android:textIsSelectable="true" />
+    <Button android:id="@+id/accessibility" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="24dp" android:backgroundTint="@color/blue" android:text="@string/enable_permission" android:textColor="@android:color/white" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="@string/privacy_tip" android:textColor="@color/muted" android:textSize="13sp" />
+  </LinearLayout>
+</ScrollView>

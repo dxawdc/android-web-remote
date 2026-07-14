@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">远程控制 Agent</string>
+    <string name="accessibility_description">在设备主人主动授权的远程会话中，读取屏幕、执行点击、滑动和系统导航操作。</string>
+    <string name="intro">仅在您主动授权后，电脑浏览器才能控制此手机。</string>
+    <string name="status_waiting">状态：等待开启权限</string>
+    <string name="status_reconnecting">状态：配置已保存，正在重新连接</string>
+    <string name="status_connected">状态：已连接，浏览器可以访问</string>
+    <string name="status_connecting">状态：正在连接服务器…</string>
+    <string name="status_authenticating">状态：服务器已连接，正在验证设备…</string>
+    <string name="status_retrying">状态：连接中断，%1$d 秒后自动重试</string>
+    <string name="status_auth_failed">状态：认证失败，请确认网页端已添加此设备</string>
+    <string name="status_permission">状态：请确认无障碍权限已开启</string>
+    <string name="server_address">WebSocket 服务地址</string>
+    <string name="server_hint">ws://10.0.2.2:8787/ws</string>
+    <string name="save_reconnect">保存并重新连接</string>
+    <string name="browser_connection">浏览器连接信息</string>
+    <string name="enable_permission">开启远程控制权限</string>
+    <string name="privacy_tip">提示：手机端会保留无障碍服务状态。敏感页面、支付页面和安全锁屏可能无法显示或操作。</string>
+    <string name="device_id_value">设备 ID：%1$s</string>
+    <string name="access_key_value">访问密钥：%1$s</string>
+    <string name="invalid_server_url">地址必须以 ws:// 或 wss:// 开头</string>
+</resources>

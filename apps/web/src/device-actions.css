@@ -1,0 +1,15 @@
+.device-actions {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  gap: 2px;
+}
+
+.device .device-actions .icon-button {
+  position: static;
+}
+
+.device .delete-device {
+  color: #c83333;
+}
