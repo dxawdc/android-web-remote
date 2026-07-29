@@ -159,6 +159,13 @@ export function listDevices(userId: number) {
     .map(({ access_key_hash, user_id, ...device }) => device);
 }
 
+export function listAllDevicesForDiagnostics() {
+  return store.devices.map(({ access_key_hash, ...device }) => ({
+    ...device,
+    owner_username: getUser(device.user_id)?.username ?? "已删除账号",
+  }));
+}
+
 export function getDevice(id: number) {
   return store.devices.find((device) => device.id === id);
 }
