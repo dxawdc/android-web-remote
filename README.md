@@ -123,12 +123,12 @@ npm run build:android
 Remove-Item Env:REMOTE_SERVER_URL
 ```
 
-APK 会生成到 `output/android/`。`output/` 和 `*.apk` 已被 Git 忽略，不会推送到仓库。
+APK 会生成到 `output/android/remote-control-agent-<版本号>.apk`，同时生成包含版本、文件大小和 SHA-256 的 `latest.json`。版本号直接读取 Android 构建元数据。`output/` 和 `*.apk` 已被 Git 忽略，不会推送到仓库。
 
 ### 安装到已连接设备
 
 ```powershell
-.\.tools\android-sdk\platform-tools\adb.exe install -r .\output\android\remote-control-agent-debug.apk
+.\.tools\android-sdk\platform-tools\adb.exe install -r .\output\android\remote-control-agent-0.7.0.apk
 ```
 
 也可以把 APK 发送到本人手机后覆盖安装。覆盖安装会保留应用已有的设备 ID、访问密钥和服务地址。
@@ -177,6 +177,12 @@ npm run mock -w apps/server
 
 如果修改部署子路径，需要同步调整 `apps/web/vite.config.ts` 中的 `base`、Web API 前缀以及 WebSocket 地址生成逻辑。
 
+### 登录后下载 APK
+
+将带版本号的 APK 和对应 `latest.json` 上传到服务端 `DATA_DIR/downloads/`，或通过 `APK_DIR` 指定独立目录。先上传并校验 APK 的 SHA-256，再替换 `latest.json`，避免暴露未上传完整的安装包。目录应位于 Web 静态文件根目录之外，无需新增 Nginx 静态下载规则。
+
+登录后页面顶部显示“下载 Android APK”及版本号。版本信息和文件均通过现有 `/api` 代理访问，要求有效且未停用的登录账号。前端以请求头传递令牌，下载链接不会携带令牌。APK 内置的服务地址应在构建时通过 `REMOTE_SERVER_URL` 指向当前部署站点；已有安装仍保留用户保存的地址。
+
 ## 安全边界
 
 - 只控制本人设备或得到设备所有者明确授权的设备。
@@ -218,6 +224,10 @@ npm run mock -w apps/server
 默认数据文件为 `apps/server/data/remote-control.json`（具体位置取决于启动目录和 `DATA_DIR`）。其中包含账号和设备元数据；密码和设备访问密钥保存为 bcrypt 哈希。JWT 密钥默认保存在同一数据目录的 `.jwt-secret`。
 
 这些文件全部被 `.gitignore` 排除。迁移或备份时应将整个数据目录作为敏感数据处理。
+
+服务端只在数据文件不存在或文件包含有效空数据库时执行首次初始化。已有数据文件读取失败、JSON 损坏或结构不符合要求时，会明确报错并停止启动，不会自动清空或覆盖。遇到此类错误，应先保留原文件，再检查文件权限或从可靠备份恢复完整数据目录；不要通过删除原文件来恢复启动。
+
+停用账号会立即撤销其远程连接；删除账号或设备会同时清理关联会话。设备重新绑定后，原账号的旧连接无法继续访问。最后一个查看者断开连接时，手机停止截屏上传；再次连接会重新启动屏幕流。
 
 ## 当前限制
 

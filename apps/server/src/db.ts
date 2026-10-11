@@ -39,12 +39,54 @@ const now = () => new Date().toISOString();
 const emptyStore = (): Store => ({ nextUserId: 1, nextDeviceId: 1, users: [], devices: [] });
 
 function load(): Store {
-  if (!fs.existsSync(file)) return emptyStore();
+  let content: string;
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8")) as Store;
-  } catch {
-    return emptyStore();
+    content = fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyStore();
+    throw new Error("Cannot read the existing database; startup aborted without resetting data.");
   }
+  try {
+    const value: unknown = JSON.parse(content);
+    if (!isStore(value)) throw new Error("Invalid schema");
+    return value;
+  } catch {
+    throw new Error("Invalid database JSON or schema; restore the data file from backup. Existing data was not overwritten.");
+  }
+}
+
+function isStore(value: unknown): value is Store {
+  const object = (item: unknown): item is Record<string, unknown> =>
+    item !== null && typeof item === "object" && !Array.isArray(item);
+  const id = (item: unknown): item is number => Number.isSafeInteger(item) && Number(item) > 0;
+  const text = (item: unknown): item is string => typeof item === "string" && item.length > 0;
+  if (!object(value) || !id(value.nextUserId) || !id(value.nextDeviceId) ||
+      !Array.isArray(value.users) || !Array.isArray(value.devices)) return false;
+  const userIds = new Set<number>();
+  const usernames = new Set<string>();
+  for (const user of value.users as unknown[]) {
+    if (!object(user) || !id(user.id) || user.id >= value.nextUserId ||
+        !text(user.username) || !text(user.password_hash) ||
+        (user.role !== "admin" && user.role !== "user") ||
+        (user.active !== 0 && user.active !== 1) ||
+        !text(user.created_at) || !text(user.updated_at) ||
+        userIds.has(user.id) || usernames.has(user.username)) return false;
+    userIds.add(user.id);
+    usernames.add(user.username);
+  }
+  const deviceIds = new Set<number>();
+  const identifiers = new Set<string>();
+  for (const device of value.devices as unknown[]) {
+    if (!object(device) || !id(device.id) || device.id >= value.nextDeviceId ||
+        !id(device.user_id) || !userIds.has(device.user_id) ||
+        !text(device.device_id) || !text(device.name) || !text(device.access_key_hash) ||
+        (device.last_seen_at !== null && !text(device.last_seen_at)) ||
+        !text(device.created_at) || !text(device.updated_at) ||
+        deviceIds.has(device.id) || identifiers.has(device.device_id)) return false;
+    deviceIds.add(device.id);
+    identifiers.add(device.device_id);
+  }
+  return true;
 }
 
 let store = load();

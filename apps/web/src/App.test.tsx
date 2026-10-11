@@ -48,6 +48,8 @@ const remote = vi.hoisted(() => ({
 
 vi.mock("./lib/api", () => ({
   api: {
+    androidRelease: vi.fn().mockResolvedValue({version:"0.7.0",filename:"remote-control-agent-0.7.0.apk"}),
+    downloadAndroid: vi.fn(),
     devices: mocks.devices,
     deleteDevice: mocks.deleteDevice,
     login: vi.fn(),
