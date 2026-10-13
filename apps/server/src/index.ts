@@ -6,8 +6,10 @@ import { createDevice, createUser, deleteDevice, deleteUser, findUser, getDevice
 import { SessionRegistry } from "./session.js";
 import { attachWebSockets } from "./websocket.js";
 import { attachDownloads } from "./downloads.js";
+import { DiagnosticLogStore } from "./diagnostic-logs.js";
 
 const app=express();app.use(cors());app.use(express.json({limit:"1mb"}));
+const diagnosticLogs = new DiagnosticLogStore();
 attachDownloads(app);
 app.get("/health",(_req,res)=>res.json({ok:true}));
 app.post("/api/auth/login",(req,res)=>{const username=String(req.body?.username??"").trim();const password=String(req.body?.password??"");const user=findUser(username);if(!user||!user.active||!verifyPassword(password,user.password_hash))return res.status(401).json({message:"账号或密码错误"});return res.json({token:issueToken(user),user:{id:user.id,username:user.username,role:user.role}});});
@@ -19,9 +21,17 @@ app.delete("/api/devices/:id", requireAuth, (req: AuthRequest, res) => {
   const record = getDeviceForUser(Number(req.params.id), req.user!.id);
   if (!record || !deleteDevice(record.id, req.user!.id)) return res.status(404).json({ message: "设备不存在" });
   sessions.revokeDevice(record.device_id);
+  diagnosticLogs.remove(record.id);
   return res.status(204).end();
 });
 app.get("/api/admin/users",requireAuth,requireAdmin,(_req,res)=>res.json({users:listUsers()}));
+app.get("/api/admin/diagnostics/:id/logs", requireAuth, requireAdmin, (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const id = Number(req.params.id);
+  if (!listAllDevicesForDiagnostics().some(device => device.id === id)) return res.status(404).json({ message: "设备不存在" });
+  try { return res.json({ snapshot: diagnosticLogs.read(id) }); }
+  catch { return res.status(503).json({ message: "日志暂时无法读取，请稍后重试" }); }
+});
 app.get("/api/admin/diagnostics",requireAuth,requireAdmin,(_req,res)=>res.json({
   generatedAt:new Date().toISOString(),
   devices:listAllDevicesForDiagnostics().map(device=>({
@@ -57,12 +67,14 @@ app.patch("/api/admin/users/:id", requireAuth, requireAdmin, (req: AuthRequest, 
 app.delete("/api/admin/users/:id", requireAuth, requireAdmin, (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   if (id === req.user!.id) return res.status(400).json({ message: "不能删除当前管理员账号" });
+  const removedDevices = listAllDevicesForDiagnostics().filter(device => device.user_id === id);
   if (!deleteUser(id)) return res.status(404).json({ message: "账号不存在" });
   sessions.revokeUser(id);
+  removedDevices.forEach(device => diagnosticLogs.remove(device.id));
   return res.status(204).end();
 });
 
 const server=createServer(app);const wss=new WebSocketServer({server,path:"/ws",maxPayload:4*1024*1024});const sessions=new SessionRegistry();
-attachWebSockets(wss, sessions);
+attachWebSockets(wss, sessions, diagnosticLogs);
 const port=Number(process.env.PORT??8787);server.listen(port,"0.0.0.0",()=>console.log(`Remote control server listening on :${port}`));
 export {server, wss};

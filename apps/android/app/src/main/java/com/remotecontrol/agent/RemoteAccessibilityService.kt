@@ -41,6 +41,27 @@ class RemoteAccessibilityService : AccessibilityService() {
         @Volatile var statusMessage:String?=null
     }
     private var destroyed=false
+    private var uploadedLogRevision=-1L
+    private var pendingLogRevision=-1L
+    private var pendingLogId=""
+    private val logUploadLoop=object:Runnable {
+        override fun run(){
+            if(destroyed)return
+            uploadDiagnosticLogs()
+            main.postDelayed(this,30_000)
+        }
+    }
+    private fun uploadDiagnosticLogs(){
+        if(!connected||destroyed)return
+        val active=socket?:return
+        if(active.queueSize()>QUEUE_LIMIT_BYTES)return
+        val (revision, snapshot)=DiagnosticLog.uploadSnapshot()
+        if(revision==uploadedLogRevision)return
+        pendingLogRevision=revision;pendingLogId="$connectionAttempt:$revision"
+        DiagnosticLog.syncPending()
+        active.send(JSONObject().put("type","diagnosticLogs").put("uploadId",pendingLogId)
+            .put("version",BuildConfig.VERSION_NAME).put("lines",JSONArray(snapshot.lines())).toString())
+    }
     private var framesSent=0L
     private val reconnectTask=Runnable { if(!destroyed)connect() }
     private val main=Handler(Looper.getMainLooper()); private val screenshotExecutor=Executors.newSingleThreadExecutor(); @Volatile private var reconnectPending=false; @Volatile private var connectionAttempt=0L
@@ -73,6 +94,7 @@ class RemoteAccessibilityService : AccessibilityService() {
         DiagnosticLog.record("无障碍服务","已启动；截图能力=${serviceInfo.capabilities and 128 != 0}；手势能力=${serviceInfo.capabilities and 32 != 0}")
         ContextCompat.registerReceiver(this,reconnectReceiver,IntentFilter(ACTION_RECONNECT).apply{addAction(ACTION_CAPTURE_TEST)},ContextCompat.RECEIVER_NOT_EXPORTED)
         connect()
+        main.postDelayed(logUploadLoop,30_000)
     }
     override fun onAccessibilityEvent(event:AccessibilityEvent?)=Unit
     override fun onInterrupt(){DiagnosticLog.record("无障碍服务","系统中断服务")}
@@ -86,6 +108,7 @@ class RemoteAccessibilityService : AccessibilityService() {
     private fun connect(){
         if(destroyed)return
         main.removeCallbacks(reconnectTask);reconnectPending=false;stopStreaming()
+        uploadedLogRevision=-1;pendingLogRevision=-1;pendingLogId="";DiagnosticLog.syncPending()
         val attempt=++connectionAttempt;connected=false;statusMessage=getString(R.string.status_connecting);socket?.cancel()
         DiagnosticLog.record("连接","开始连接；尝试 $attempt")
         val cfg=AgentConfig(this)
@@ -104,7 +127,12 @@ class RemoteAccessibilityService : AccessibilityService() {
                 runCatching{
                     val message=JSONObject(text)
                     when(message.optString("type")){
-                        "registered"->{connected=true;statusMessage=getString(R.string.status_connected);DiagnosticLog.record("认证","成功，等待网页命令")}
+                        "registered"->{connected=true;statusMessage=getString(R.string.status_connected);DiagnosticLog.record("认证","成功，等待网页命令");uploadDiagnosticLogs()}
+                        "diagnosticLogsAck"->{
+                            if(connected&&message.optBoolean("success")&&message.optString("uploadId")==pendingLogId){
+                                uploadedLogRevision=pendingLogRevision;DiagnosticLog.syncSucceeded()
+                            }
+                        }
                         "authFailed"->{connected=false;statusMessage=getString(R.string.status_auth_failed);DiagnosticLog.record("认证失败","请核对账号状态、设备 ID 和访问密钥");webSocket.close(4003,"auth failed")}
                         else->if(connected)handle(message)
                     }
@@ -125,6 +153,7 @@ class RemoteAccessibilityService : AccessibilityService() {
     private fun scheduleReconnect(authFailed:Boolean=false){
         if(destroyed||reconnectPending)return
         reconnectPending=true;connected=false;stopStreaming()
+        DiagnosticLog.syncPending()
         val delay=if(authFailed)30_000L else reconnectDelay
         statusMessage=if(authFailed)getString(R.string.status_auth_failed) else getString(R.string.status_retrying,(delay/1000).coerceAtLeast(1))
         DiagnosticLog.record("重连","${delay/1000} 秒后重试")

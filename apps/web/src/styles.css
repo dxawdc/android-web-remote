@@ -11,3 +11,8 @@
 
 .android-download{position:relative}.account-strip .android-download button{color:#1769e8;background:#f4f8ff;border-color:#c6d9fb;white-space:nowrap}.android-download button:disabled{cursor:wait;opacity:.7}.android-download small{font-size:11px;background:#e2edff;padding:2px 5px;border-radius:4px}.android-download p{position:absolute;right:0;top:100%;width:240px;z-index:10;background:#fff4f2;border:1px solid #f1c6c2;border-radius:7px;color:#b42318;padding:10px;box-shadow:0 4px 16px #17203314;font-size:12px}
 @media(max-width:760px){header{flex-wrap:wrap;gap:14px}.account-strip{width:100%;flex-wrap:wrap;gap:7px}.android-download{flex-basis:100%}.account-strip .android-download button{width:100%;justify-content:center}.account-strip>button{flex:1;justify-content:center}.android-download p{left:0;right:auto}}
+
+.device-logs { margin: 16px 0; padding: 16px; border: 1px solid #d9e2ef; border-radius: 12px; background: #f8fafc; min-width: 0; }
+.device-logs h3 { margin: 0; overflow-wrap: anywhere; }
+.device-logs p { color: #64748b; font-size: 13px; line-height: 1.6; }
+.device-logs textarea { display: block; box-sizing: border-box; width: 100%; min-width: 0; height: 320px; resize: vertical; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 monospace; }

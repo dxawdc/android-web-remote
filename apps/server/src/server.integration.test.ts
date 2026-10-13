@@ -108,6 +108,34 @@ afterAll(async () => {
 });
 
 describe("WebSocket authorization and lifecycle", () => {
+  it("stores authenticated device logs without broadcasting and makes them available to admins while offline", async () => {
+    const f = await fixture();
+    const endpoint = `/api/admin/diagnostics/${f.device.id}/logs`;
+    expect((await api(endpoint, "GET", undefined, "")).status).toBe(401);
+    expect((await api(endpoint, "GET", undefined, f.token)).status).toBe(403);
+    expect((await api(endpoint)).body.snapshot).toBeNull();
+    const upload = { type: "diagnosticLogs", uploadId: "1:99", version: "0.9.0", lines: ["[连接失败] 网络不可用", "[认证] 成功"] };
+    const stranger = await open(); stranger.send(upload); await stranger.next("authFailed");
+    expect((await api(endpoint)).body.snapshot).toBeNull();
+    f.agent.send(upload);
+    expect(await f.agent.next("diagnosticLogsAck")).toMatchObject({ success: true, uploadId: "1:99" });
+    expect(f.controller.messages.some(message => message.type === "diagnosticLogs")).toBe(false);
+    const closed = once(f.agent.socket, "close"); f.agent.socket.close(); await closed;
+    expect((await api(endpoint)).body.snapshot).toMatchObject({ version: "0.9.0", lines: upload.lines });
+    const another = await fixture();
+    expect((await api(`/api/admin/diagnostics/${another.device.id}/logs`)).body.snapshot).toBeNull();
+    expect((await api(`/api/devices/${f.device.id}`, "DELETE", undefined, f.token)).status).toBe(204);
+    expect((await api(endpoint)).status).toBe(404);
+  });
+
+  it("rejects malformed log batches without interrupting screen streaming", async () => {
+    const f = await fixture();
+    f.agent.send({ type: "diagnosticLogs", uploadId: "1:1", version: "0.9.0", lines: [42] });
+    expect((await f.agent.next("diagnosticLogsAck")).success).toBe(false);
+    f.agent.send({ type: "screenFrame", data: "still-streaming" });
+    expect((await f.controller.next("screenFrame")).data).toBe("still-streaming");
+  });
+
   it("protects versioned APK metadata and bytes behind active-user authentication", async () => {
     expect((await api("/api/downloads/android", "GET", undefined, "")).status).toBe(401);
     expect((await api(`/api/downloads/android/${apkRelease.filename}`, "GET", undefined, "")).status).toBe(401);

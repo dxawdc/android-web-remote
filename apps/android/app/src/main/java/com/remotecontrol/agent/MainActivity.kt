@@ -16,6 +16,7 @@ class MainActivity : AppCompatActivity() {
     private var logRevision=-1L
     private val statusHandler=Handler(Looper.getMainLooper())
     private val statusRefresh=object:Runnable{override fun run(){RemoteAccessibilityService.statusMessage?.let{binding.status.text=it};binding.captureTest.isEnabled=RemoteAccessibilityService.serviceActive
+        binding.logSyncStatus.text=DiagnosticLog.syncStatus
         if(logRevision!=DiagnosticLog.revision){logRevision=DiagnosticLog.revision;binding.diagnosticLogs.text=DiagnosticLog.snapshot().lineSequence().toList().takeLast(80).joinToString("\n")}
         statusHandler.postDelayed(this,500)}}
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -1,6 +1,7 @@
 const apiBase = import.meta.env.VITE_API_BASE ?? (location.port === "5173" || location.port === "4173" ? "" : "/xiaoming");
 export interface User { id:number; username:string; role:"admin"|"user" }
 export interface AndroidRelease { version: string; versionCode: number; filename: string; size: number; sha256: string }
+export interface DiagnosticSnapshot { receivedAt: string; version: string; lines: string[] }
 export interface SavedDevice { id:number; device_id:string; name:string; last_seen_at:string|null; created_at:string; updated_at:string; online?:boolean }
 export interface AdminUser { id:number; username:string; role:"admin"|"user"; active:number; created_at:string; updated_at:string }
 export interface DeviceDiagnostic {
@@ -26,6 +27,7 @@ export interface DeviceDiagnostic {
 }
 async function request<T>(path:string, options:RequestInit={}, token?:string):Promise<T>{const response=await fetch(`${apiBase}${path}`,{...options,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{}) ,...(options.headers??{})}});let body:any={};try{body=await response.json()}catch{}if(!response.ok)throw new Error(body.message??`请求失败 (${response.status})`);return body as T;}
 export const api={
+deviceLogs:(token:string,id:number)=>request<{snapshot:DiagnosticSnapshot|null}>(`/api/admin/diagnostics/${id}/logs`,{},token),
 androidRelease:(token:string)=>request<AndroidRelease>("/api/downloads/android",{},token),
 downloadAndroid:async(token:string,filename:string)=>{
   const response=await fetch(`${apiBase}/api/downloads/android/${encodeURIComponent(filename)}`,{headers:{Authorization:`Bearer ${token}`}});

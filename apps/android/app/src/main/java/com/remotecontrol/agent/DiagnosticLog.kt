@@ -20,6 +20,8 @@ object DiagnosticLog {
     private val lastEvents = mutableMapOf<String, Long>()
     @Volatile var revision = 0L
         private set
+    @Volatile var syncStatus = "等待设备认证后自动同步"
+        private set
 
     @Synchronized fun initialize(context: Context) {
         if (file != null) return
@@ -60,4 +62,7 @@ object DiagnosticLog {
     }
     @Synchronized fun clear() { buffer.clear(); lastEvents.clear(); record("日志", "日志已清空") }
     fun snapshot(): String = buffer.snapshot()
+    @Synchronized fun uploadSnapshot(): Pair<Long, String> = revision to buffer.snapshot()
+    fun syncPending() { syncStatus = "日志待同步，连通并认证后自动重试" }
+    fun syncSucceeded() { syncStatus = "最近同步：" + SimpleDateFormat("MM-dd HH:mm:ss", Locale.ROOT).format(Date()) }
 }

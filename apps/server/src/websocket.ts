@@ -2,8 +2,9 @@ import { WebSocket, WebSocketServer } from "ws";
 import { verifyToken } from "./auth.js";
 import { getDeviceByDeviceId, getDeviceForUser, getUser, markDeviceSeen, verifyDeviceKey } from "./db.js";
 import { SessionRegistry, type ConnectedDevice } from "./session.js";
+import { DiagnosticLogStore } from "./diagnostic-logs.js";
 
-export function attachWebSockets(wss: WebSocketServer, sessions: SessionRegistry) {
+export function attachWebSockets(wss: WebSocketServer, sessions: SessionRegistry, logs = new DiagnosticLogStore()) {
   wss.on("connection", socket => {
     let role: "device" | "controller" | undefined;
     let identity: ConnectedDevice | undefined;
@@ -93,6 +94,14 @@ export function attachWebSockets(wss: WebSocketServer, sessions: SessionRegistry
           sessions.forwardToDevice(deviceId, raw.toString());
         } else {
           if (!sessions.isCurrentDevice(deviceId, socket)) { revoke(); return; }
+          if (message.type === "diagnosticLogs") {
+            // Never relay private diagnostics to controller sockets. ACK only after durable storage.
+            try {
+              const saved = logs.save(databaseId, message);
+              reply({ type: "diagnosticLogsAck", uploadId: saved ? message.uploadId : "", success: saved });
+            } catch { reply({ type: "diagnosticLogsAck", success: false }); }
+            return;
+          }
           sessions.recordDeviceMessage(deviceId, message);
           const timestamp = Date.now();
           if (timestamp - lastSeenSavedAt >= 15_000) {

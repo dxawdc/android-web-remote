@@ -1,6 +1,7 @@
 import { Activity, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api, type DeviceDiagnostic } from "../lib/api";
+import { DeviceLogs } from "./DeviceLogs";
 
 const absoluteTime = (value: string | null) => {
   if (!value) return "暂无";
@@ -31,6 +32,7 @@ export function DiagnosticsPanel({ token }: { token: string }) {
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [logDevice, setLogDevice] = useState<DeviceDiagnostic | null>(null);
   const now = generatedAt ? new Date(generatedAt).getTime() : Date.now();
 
   const reload = useCallback(async () => {
@@ -68,6 +70,7 @@ export function DiagnosticsPanel({ token }: { token: string }) {
       </div>
 
       {error && <div className="diagnostic-error-banner">刷新失败：{error}</div>}
+      {logDevice && <DeviceLogs key={logDevice.id} token={token} device={logDevice} onClose={() => setLogDevice(null)} />}
       {loading && <div className="diagnostics-empty">正在读取设备状态…</div>}
       {!loading && devices.length === 0 && (
         <div className="diagnostics-empty">
@@ -94,6 +97,7 @@ export function DiagnosticsPanel({ token }: { token: string }) {
                 <span className="diagnostic-device" data-label="设备">
                   <strong>{device.name}</strong>
                   <small>{device.device_id}</small>
+                  <button className="text-button" onClick={() => setLogDevice(device)}>查看日志</button>
                 </span>
                 <span data-label="账号">{device.owner_username}</span>
                 <span data-label="连接状态">
