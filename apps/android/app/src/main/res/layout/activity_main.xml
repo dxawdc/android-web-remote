@@ -12,5 +12,13 @@
     <TextView android:id="@+id/accessKey" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:background="@android:color/white" android:padding="16dp" android:textColor="@color/text" android:textIsSelectable="true" />
     <Button android:id="@+id/accessibility" android:layout_width="match_parent" android:layout_height="52dp" android:layout_marginTop="24dp" android:backgroundTint="@color/blue" android:text="@string/enable_permission" android:textColor="@android:color/white" />
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="@string/privacy_tip" android:textColor="@color/muted" android:textSize="13sp" />
+    <TextView android:id="@+id/diagnosticTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="诊断日志" android:textColor="@color/text" android:textSize="20sp" android:textStyle="bold" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="无画面时：点击截图自检，再在网页重试一次，最后复制日志。日志只保存在此手机，不包含访问密钥或画面内容。" android:textColor="@color/muted" android:textSize="13sp" />
+    <Button android:id="@+id/captureTest" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="截图自检" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+      <Button android:id="@+id/copyLogs" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="复制日志" />
+      <Button android:id="@+id/clearLogs" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="清空日志" />
+    </LinearLayout>
+    <TextView android:id="@+id/diagnosticLogs" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="180dp" android:background="@android:color/white" android:padding="12dp" android:fontFamily="monospace" android:textColor="@color/text" android:textSize="12sp" android:textIsSelectable="true" />
   </LinearLayout>
 </ScrollView>

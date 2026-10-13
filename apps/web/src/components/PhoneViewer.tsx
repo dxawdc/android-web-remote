@@ -3,6 +3,7 @@ import { Home, LoaderCircle, LogOut, RefreshCw, RotateCw, Square, Sun, TriangleA
 import type { FrameStage } from "../types";
 
 interface Props {
+  commandFeedback?: string;
   frame?: string;
   frameStage: FrameStage;
   frameIssue?: string;
@@ -33,6 +34,7 @@ const stageCopy: Record<FrameStage, { title: string; detail: string }> = {
 };
 
 export function PhoneViewer({
+  commandFeedback,
   frame,
   frameStage,
   frameIssue,
@@ -130,6 +132,7 @@ export function PhoneViewer({
         <i />
         <button className="danger" onClick={onDisconnect}><LogOut /><span>断开连接</span></button>
       </div>
+      {commandFeedback && <p className="privacy-note" role="status">{commandFeedback}</p>}
       <p className="privacy-note">为保障隐私，敏感页面可能无法显示或被系统限制操作。</p>
     </main>
   );

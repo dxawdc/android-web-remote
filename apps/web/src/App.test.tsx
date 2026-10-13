@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   deleteDevice: vi.fn().mockResolvedValue(undefined),
@@ -85,6 +85,7 @@ vi.mock("./lib/remoteClient", () => ({
 import App from "./App";
 
 describe("device management", () => {
+  afterEach(() => { cleanup(); vi.useRealTimers(); });
   beforeEach(() => {
     sessionStorage.clear();
     sessionStorage.setItem("remote-token", "test-token");
@@ -138,5 +139,30 @@ describe("device management", () => {
     expect(screen.getByText("在线")).toBeTruthy();
     expect(screen.getByText("2")).toBeTruthy();
     expect(screen.getByText("-1 · timeout")).toBeTruthy();
+  });
+
+  it("shows the phone acknowledgement for a retry command", async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "连接设备" }));
+    act(() => remote.listener?.({ type: "commandResult", command: "restartStream", success: true, detail: "手机已收到重试命令" }));
+    expect(screen.getByRole("status").textContent).toBe("手机已收到重试命令");
+  });
+
+  it("starts a fresh timeout window on every manual retry", async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "连接设备" }));
+    act(() => remote.listener?.({ type: "captureError", code: 1 }));
+    vi.useFakeTimers();
+    try {
+      const retry = screen.getByRole("button", { name: "重新请求画面" });
+      fireEvent.click(retry);
+      act(() => vi.advanceTimersByTime(5000));
+      fireEvent.click(retry);
+      act(() => vi.advanceTimersByTime(1000));
+      const restarts = () => remote.send.mock.calls.filter(call => call[0] === "restartStream").length;
+      expect(restarts()).toBe(2);
+      act(() => vi.advanceTimersByTime(5000));
+      expect(restarts()).toBe(3);
+    } finally { vi.useRealTimers(); }
   });
 });
