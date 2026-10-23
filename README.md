@@ -4,6 +4,14 @@
 
 项目不依赖 Root、ADB 常驻连接或 USB 数据线，适合个人设备管理、测试机协助和远程演示。请勿将它用于未经设备所有者明确授权的设备。
 
+<!-- caige-author:start -->
+**作者：才哥** · 微信公众号：**可以叫我才哥**
+
+微信扫码关注：
+
+<img src="assets/caige-wechat-qrcode.jpg" alt="微信公众号「可以叫我才哥」扫码关注二维码" width="172" height="172" />
+<!-- caige-author:end -->
+
 ## 功能
 
 - 账号登录和基于 JWT 的浏览器会话
