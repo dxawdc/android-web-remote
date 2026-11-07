@@ -40,7 +40,34 @@ class RemoteAccessibilityService : AccessibilityService() {
         @Volatile var connected=false
         @Volatile var statusMessage:String?=null
     }
-    private var destroyed=false
+    @Volatile private var destroyed=false
+    private val gestureGuard=GestureGuard()
+    private val screenshotTaskBusy=java.util.concurrent.atomic.AtomicBoolean(false)
+    private var serverClockOffset=0L
+    private var lastTickElapsed=SystemClock.elapsedRealtime()
+    private var lastTickUptime=SystemClock.uptimeMillis()
+    private var interactionWakeLock:PowerManager.WakeLock?=null
+    private val healthTick=object:Runnable {
+        override fun run(){
+            if(destroyed)return
+            val elapsed=SystemClock.elapsedRealtime();val uptime=SystemClock.uptimeMillis()
+            if(elapsed-lastTickElapsed>5_000){
+                DiagnosticLog.record("调度延迟","间隔=${elapsed-lastTickElapsed}ms；休眠差=${(elapsed-lastTickElapsed)-(uptime-lastTickUptime)}ms；"+powerState())
+            }
+            lastTickElapsed=elapsed;lastTickUptime=uptime
+            main.postDelayed(this,2_000)
+        }
+    }
+    private fun powerState():String {
+        val power=getSystemService(PowerManager::class.java)
+        return "亮屏=${power.isInteractive}；省电=${power.isPowerSaveMode}；闲置=${power.isDeviceIdleMode}；电池优化豁免=${power.isIgnoringBatteryOptimizations(packageName)}"
+    }
+    @Suppress("DEPRECATION")
+    private fun holdInteractionScreen(){
+        if(!getSystemService(PowerManager::class.java).isInteractive)return
+        val lock=interactionWakeLock?:getSystemService(PowerManager::class.java).newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK,"remotecontrol:activeInput").apply{setReferenceCounted(false)}.also{interactionWakeLock=it}
+        lock.acquire(60_000L)
+    }
     private var uploadedLogRevision=-1L
     private var pendingLogRevision=-1L
     private var pendingLogId=""
@@ -95,6 +122,8 @@ class RemoteAccessibilityService : AccessibilityService() {
         ContextCompat.registerReceiver(this,reconnectReceiver,IntentFilter(ACTION_RECONNECT).apply{addAction(ACTION_CAPTURE_TEST)},ContextCompat.RECEIVER_NOT_EXPORTED)
         connect()
         main.postDelayed(logUploadLoop,30_000)
+        main.post(healthTick)
+        DiagnosticLog.record("电源状态",powerState())
     }
     override fun onAccessibilityEvent(event:AccessibilityEvent?)=Unit
     override fun onInterrupt(){DiagnosticLog.record("无障碍服务","系统中断服务")}
@@ -122,19 +151,27 @@ class RemoteAccessibilityService : AccessibilityService() {
                 DiagnosticLog.record("连接","WebSocket 已建立；开始设备认证")
                 webSocket.send(JSONObject().put("type","registerDevice").put("deviceId",cfg.deviceId).put("accessKey",cfg.accessKey).toString())
             }}
-            override fun onMessage(webSocket:WebSocket,text:String){main.post{
+            override fun onMessage(webSocket:WebSocket,text:String){
+                val receivedAt=SystemClock.elapsedRealtime()
+                val receivedWallTime=System.currentTimeMillis()
+                main.post{
                 if(destroyed||attempt!=connectionAttempt)return@post
                 runCatching{
                     val message=JSONObject(text)
                     when(message.optString("type")){
-                        "registered"->{connected=true;statusMessage=getString(R.string.status_connected);DiagnosticLog.record("认证","成功，等待网页命令");uploadDiagnosticLogs()}
+                        "registered"->{serverClockOffset=message.optLong("serverTime",receivedWallTime)-receivedWallTime;connected=true;statusMessage=getString(R.string.status_connected);DiagnosticLog.record("认证","成功，等待网页命令");uploadDiagnosticLogs()}
                         "diagnosticLogsAck"->{
                             if(connected&&message.optBoolean("success")&&message.optString("uploadId")==pendingLogId){
                                 uploadedLogRevision=pendingLogRevision;DiagnosticLog.syncSucceeded()
                             }
                         }
                         "authFailed"->{connected=false;statusMessage=getString(R.string.status_auth_failed);DiagnosticLog.record("认证失败","请核对账号状态、设备 ID 和访问密钥");webSocket.close(4003,"auth failed")}
-                        else->if(connected)handle(message)
+                        else->if(connected){
+                            val interactive=message.optString("type") in setOf("gesture","home","back","recents","launchApp","wakeScreen","rotate")
+                            if(interactive && (SystemClock.elapsedRealtime()-receivedAt>2_000 || (message.has("expiresAt") && message.optLong("expiresAt")<System.currentTimeMillis()+serverClockOffset))){
+                                commandResult("expired",false,"操作已过期，已丢弃，请确认当前画面后重新操作")
+                            }else handle(message)
+                        }
                     }
                 }.onFailure{DiagnosticLog.record("命令异常","解析或执行失败：${it.javaClass.simpleName}");send(JSONObject().put("type","commandResult").put("success",false).put("detail","手机执行命令异常，请查看 App 诊断日志"))}
             }}
@@ -183,10 +220,10 @@ class RemoteAccessibilityService : AccessibilityService() {
         }
     }
     private fun sendCaptureError(code:Int,reason:String){
-        val explanation=when(code){1->"系统内部错误";2->"无截图权限，请重启无障碍服务";3->"请求过于频繁";4->"显示屏不可用";5->"窗口不可用";6->"安全页面禁止截图";-1->"截图回调超过 5 秒未返回";-2->"无法读取截图缓冲区";-3->"图像处理失败";else->"截图调用异常"}
+        val explanation=when(code){1->"系统内部错误";2->"无截图权限，请重启无障碍服务";3->"请求过于频繁";4->"显示屏不可用";5->"窗口不可用";6->"安全页面禁止截图";-1->"截图任务超过 5 秒未完成";-2->"无法读取截图缓冲区";-3->"图像处理失败";else->"截图调用异常"}
         DiagnosticLog.record("截图失败","代码 $code：$explanation；阶段 $reason；亮屏=${getSystemService(PowerManager::class.java).isInteractive}",2_000)
         send(JSONObject().put("type","captureError").put("code",code).put("reason",reason))}
-    private fun stopStreaming(){if(streaming)DiagnosticLog.record("屏幕流","停止截图");streaming=false;captureGeneration++;captureInFlight=false;captureStartedAt=0;captureRetryAfter=0;congestedSince=0;main.removeCallbacks(screenshotLoop)}
+    private fun stopStreaming(){gestureGuard.reset();interactionWakeLock?.let{if(it.isHeld)it.release()};if(streaming)DiagnosticLog.record("屏幕流","停止截图");streaming=false;captureGeneration++;captureInFlight=false;captureStartedAt=0;captureRetryAfter=0;congestedSince=0;main.removeCallbacks(screenshotLoop)}
     private fun restartStreaming(){stopStreaming();framesSent=0;streaming=true;DiagnosticLog.record("屏幕流","启动截图循环");main.post(screenshotLoop)}
 
     private fun commandResult(command:String,success:Boolean,detail:String){
@@ -214,35 +251,62 @@ class RemoteAccessibilityService : AccessibilityService() {
     /** 点亮息屏幕；不会绕过 PIN、图案或密码锁屏。 */
     private fun wakeScreen(){
         val powerManager=getSystemService(POWER_SERVICE) as PowerManager
-        if(powerManager.isInteractive){commandResult("wakeScreen",true,"手机屏幕已经点亮");return}
+        if(powerManager.isInteractive){holdInteractionScreen();commandResult("wakeScreen",true,"手机屏幕已经点亮");return}
         @Suppress("DEPRECATION")
         val wakeLock=powerManager.newWakeLock(
             PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "remotecontrol:screenWake"
         )
-        wakeLock.acquire(1_500L)
+        wakeLock.setReferenceCounted(false)
+        wakeLock.acquire(60_000L)
+        interactionWakeLock?.let{if(it.isHeld)it.release()};interactionWakeLock=wakeLock
         commandResult("wakeScreen",true,"已请求点亮屏幕，锁屏仍需在手机上解锁")
-        main.postDelayed({runCatching{if(wakeLock.isHeld)wakeLock.release()}},1_600L)
+
     }
     private fun launchApp(packageName:String){
         val intent=packageManager.getLaunchIntentForPackage(packageName)
         if(intent==null){commandResult("launchApp",false,"找不到应用启动入口");return}
         startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));commandResult("launchApp",true,"已请求打开应用")
     }
-    private fun performGesture(message:JSONObject){val metrics=resources.displayMetrics;val action=message.optString("action");val path=Path();val duration:Long
-        if(action=="tap"){path.moveTo((message.optDouble("x")*metrics.widthPixels).toFloat(),(message.optDouble("y")*metrics.heightPixels).toFloat());duration=60}
-        else{path.moveTo((message.optDouble("startX")*metrics.widthPixels).toFloat(),(message.optDouble("startY")*metrics.heightPixels).toFloat());path.lineTo((message.optDouble("endX")*metrics.widthPixels).toFloat(),(message.optDouble("endY")*metrics.heightPixels).toFloat());duration=350}
-        val accepted=dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path,0,duration)).build(),object:GestureResultCallback(){
-            override fun onCompleted(gestureDescription:GestureDescription?){DiagnosticLog.record("手势","系统报告执行完成")}
-            override fun onCancelled(gestureDescription:GestureDescription?){commandResult("gesture",false,"手势被系统取消")}
-        },main)
-        DiagnosticLog.record("手势","系统是否接受：$accepted")
-        if(!accepted)commandResult("gesture",false,"系统拒绝手势，请检查无障碍权限")
+    private fun performGesture(message:JSONObject){
+        val metrics=resources.displayMetrics
+        val action=message.optString("action")
+        if(action!="tap" && action!="swipe"){commandResult("gesture",false,"不支持的手势类型");return}
+        val path=Path();val duration=if(action=="tap")60L else 350L
+        try {
+            fun x(key:String)=GestureGuard.pixel(message.optDouble(key),metrics.widthPixels)
+            fun y(key:String)=GestureGuard.pixel(message.optDouble(key),metrics.heightPixels)
+            if(action=="tap")path.moveTo(x("x"),y("y"))
+            else{path.moveTo(x("startX"),y("startY"));path.lineTo(x("endX"),y("endY"))}
+        }catch(_:IllegalArgumentException){commandResult("gesture",false,"无效手势坐标，已忽略");return}
+        val ticket=gestureGuard.begin(SystemClock.elapsedRealtime())
+        if(ticket==null){commandResult("gesture",false,"上一个手势尚未完成，请稍后再操作");return}
+        try {
+            holdInteractionScreen()
+            val accepted=dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path,0,duration)).build(),object:GestureResultCallback(){
+                override fun onCompleted(gestureDescription:GestureDescription?){gestureGuard.complete(ticket);DiagnosticLog.record("手势","系统报告执行完成")}
+                override fun onCancelled(gestureDescription:GestureDescription?){gestureGuard.complete(ticket);commandResult("gesture",false,"手势被系统取消")}
+            },main)
+            DiagnosticLog.record("手势","系统是否接受：$accepted")
+            if(!accepted){gestureGuard.complete(ticket);commandResult("gesture",false,"系统拒绝手势，请检查无障碍权限")}
+        }catch(_:IllegalArgumentException){gestureGuard.complete(ticket);commandResult("gesture",false,"系统拒绝手势参数，已忽略")}
     }
     private fun sendDeviceInfo(){val launchIntent=Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);val apps=packageManager.queryIntentActivities(launchIntent,0).map{JSONObject().put("label",it.loadLabel(packageManager).toString()).put("packageName",it.activityInfo.packageName)}.distinctBy{it.getString("packageName")}.sortedBy{it.getString("label")}
         val battery=getSystemService(BatteryManager::class.java).getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);val data=JSONObject().put("name","我的 Android 手机").put("model",Build.MODEL).put("androidVersion",Build.VERSION.RELEASE).put("battery",battery).put("apps",JSONArray(apps));send(JSONObject().put("type","deviceInfo").put("data",data))
     }
     private fun captureFrame(){
+        if(destroyed)return
+        if(!getSystemService(PowerManager::class.java).isInteractive){
+            captureRetryAfter=SystemClock.elapsedRealtime()+2_000
+            DiagnosticLog.record("等待亮屏",powerState(),10_000)
+            send(JSONObject().put("type","captureError").put("code",-5).put("reason","screenOff"))
+            return
+        }
+        if(!screenshotTaskBusy.compareAndSet(false,true)){
+            captureRetryAfter=SystemClock.elapsedRealtime()+1_000
+            DiagnosticLog.record("截图工作线程","前次系统调用或图像处理尚未退出，暂停追加任务",10_000)
+            return
+        }
         val generation=++captureGeneration
         captureInFlight=true;captureStartedAt=SystemClock.elapsedRealtime()
         DiagnosticLog.record("截图请求","调用系统截图；亮屏=${getSystemService(PowerManager::class.java).isInteractive}",10_000)
@@ -253,6 +317,8 @@ class RemoteAccessibilityService : AccessibilityService() {
                 sendCaptureError(-1,"timeout")
             }
         },CAPTURE_TIMEOUT_MS)
+        screenshotExecutor.execute {
+        if(destroyed||generation!=captureGeneration){screenshotTaskBusy.set(false);return@execute}
         runCatching{
             takeScreenshot(Display.DEFAULT_DISPLAY,screenshotExecutor,object:TakeScreenshotCallback{
                 override fun onSuccess(result:ScreenshotResult){
@@ -287,11 +353,13 @@ class RemoteAccessibilityService : AccessibilityService() {
                     sendCaptureError(errorCode,"system")
                 }}
             })
-        }.onFailure{
-            if(generation==captureGeneration){
+        }.onFailure{error->main.post{
+            if(!destroyed&&generation==captureGeneration){
                 captureInFlight=false;captureStartedAt=0;captureRetryAfter=SystemClock.elapsedRealtime()+CAPTURE_RETRY_DELAY_MS
-                sendCaptureError(-4,it.javaClass.simpleName)
+                sendCaptureError(-4,error.javaClass.simpleName)
             }
+        }}
+        screenshotTaskBusy.set(false)
         }
     }
 }

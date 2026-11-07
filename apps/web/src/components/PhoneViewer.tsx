@@ -48,8 +48,8 @@ export function PhoneViewer({
   const point = (event: React.PointerEvent) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
-      x: (event.clientX - rect.left) / rect.width,
-      y: (event.clientY - rect.top) / rect.height,
+      x: Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(1, rect.width))),
+      y: Math.max(0, Math.min(1, (event.clientY - rect.top) / Math.max(1, rect.height))),
     };
   };
   const copy = stageCopy[frameStage];
@@ -68,14 +68,16 @@ export function PhoneViewer({
         <div
           className="phone-screen"
           onPointerDown={(event) => {
+            if (!frame || !event.isPrimary || event.button !== 0) return;
             event.currentTarget.setPointerCapture(event.pointerId);
             start.current = point(event);
           }}
           onPointerUp={(event) => {
+            if (!event.isPrimary) return;
             const end = point(event);
             const initial = start.current;
             start.current = null;
-            if (!initial) return;
+            if (!initial || !frame) return;
             const distance = Math.hypot(end.x - initial.x, end.y - initial.y);
             distance < 0.025
               ? onGesture("tap", end)
@@ -86,6 +88,8 @@ export function PhoneViewer({
                   endY: end.y,
                 });
           }}
+          onPointerCancel={() => { start.current = null; }}
+          onLostPointerCapture={() => { start.current = null; }}
         >
           {frame ? (
             <img

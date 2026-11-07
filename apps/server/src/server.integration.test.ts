@@ -108,6 +108,17 @@ afterAll(async () => {
 });
 
 describe("WebSocket authorization and lifecycle", () => {
+  it("stamps interactive input with a short server-controlled expiry", async () => {
+    const f = await fixture();
+    const before = Date.now();
+    f.controller.send({ type: "gesture", action: "tap", x: 0.5, y: 0.5, expiresAt: 9999999999999 });
+    const command = await f.agent.next("gesture");
+    expect(command.expiresAt).toBeGreaterThanOrEqual(before + 2000);
+    expect(command.expiresAt).toBeLessThanOrEqual(Date.now() + 2000);
+    const replacement = await open();
+    replacement.send({ type: "registerDevice", deviceId: f.deviceId, accessKey });
+    expect((await replacement.next("registered")).serverTime).toBeGreaterThanOrEqual(before);
+  });
   it("stores authenticated device logs without broadcasting and makes them available to admins while offline", async () => {
     const f = await fixture();
     const endpoint = `/api/admin/diagnostics/${f.device.id}/logs`;

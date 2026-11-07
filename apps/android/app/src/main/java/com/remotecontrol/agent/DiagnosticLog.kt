@@ -46,13 +46,19 @@ object DiagnosticLog {
             pending = true
             main.postDelayed({
                 synchronized(this) { pending = false }
+                // Copy under the lock; disk I/O must never hold the lock used by UI/commands.
+                val target: AtomicFile?
+                val contents: ByteArray
+                synchronized(this) {
+                    target = file
+                    contents = buffer.snapshot().toByteArray(Charsets.UTF_8)
+                }
                 writer.execute {
-                    synchronized(this) {
-                        val target = file ?: return@execute
+                    if (target != null) {
                         var stream: java.io.FileOutputStream? = null
                         try {
                             stream = target.startWrite()
-                            stream.write(buffer.snapshot().toByteArray(Charsets.UTF_8))
+                            stream.write(contents)
                             target.finishWrite(stream)
                         } catch (_: Exception) { if (stream != null) target.failWrite(stream) }
                     }

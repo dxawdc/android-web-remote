@@ -55,7 +55,7 @@ export function attachWebSockets(wss: WebSocketServer, sessions: SessionRegistry
             identity = { socket, databaseId: record.id, userId: record.user_id, deviceId: record.device_id };
             role = "device";
             sessions.registerDevice(identity);
-            reply({ type: "registered", deviceId: record.device_id });
+            reply({ type: "registered", deviceId: record.device_id, serverTime: Date.now() });
             return;
           }
           if (message.type === "connectController") {
@@ -91,7 +91,8 @@ export function attachWebSockets(wss: WebSocketServer, sessions: SessionRegistry
         }
         if (role === "controller") {
           if (!sessions.hasController(deviceId, socket)) { revoke(); return; }
-          sessions.forwardToDevice(deviceId, raw.toString());
+          const interactive = ["gesture", "home", "back", "recents", "launchApp", "wakeScreen", "rotate"].includes(String(message.type));
+          sessions.forwardToDevice(deviceId, interactive ? JSON.stringify({ ...message, expiresAt: Date.now() + 2_000 }) : raw.toString());
         } else {
           if (!sessions.isCurrentDevice(deviceId, socket)) { revoke(); return; }
           if (message.type === "diagnosticLogs") {
