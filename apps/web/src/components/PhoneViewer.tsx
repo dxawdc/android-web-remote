@@ -15,6 +15,7 @@ interface Props {
 }
 
 const stageCopy: Record<FrameStage, { title: string; detail: string }> = {
+  screenOff: { title: "手机已息屏", detail: "请先唤醒手机屏幕" },
   waiting: {
     title: "正在获取首帧画面",
     detail: "手机已连接，正在启动屏幕传输",
@@ -111,6 +112,9 @@ export function PhoneViewer({
               </div>
               <strong>{copy.title}</strong>
               <span>{frameIssue || copy.detail}</span>
+              {frameStage === "screenOff" && <button type="button" className="screen-retry"
+                onPointerDown={event=>event.stopPropagation()} onPointerUp={event=>event.stopPropagation()}
+                onClick={()=>onCommand("wakeScreen")}><Sun />唤醒手机屏幕</button>}
               {showRetry && (
                 <button
                   type="button"

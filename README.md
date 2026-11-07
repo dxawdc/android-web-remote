@@ -215,6 +215,11 @@ npm run mock -w apps/server
 4. 反向代理是否正确转发 WebSocket Upgrade 请求。
 5. 服务端进程是否在线，数据目录是否可写。
 
+### 网页息屏处理与缓存
+
+- 收到 `screenOff` 或错误码 `-5` 时，网页进入“手机已息屏”，暂停首帧超时、截图重启和自动重连。画面中央提供“唤醒手机屏幕”，不必滚动寻找工具栏；收到新画面后恢复正常显示。
+- Nginx 的 `/xiaoming/` 静态入口应设置 `add_header Cache-Control "no-cache, must-revalidate" always;`，避免入口 HTML 被启发式缓存。已经打开的旧页面仍需刷新；可使用 `/xiaoming/?v=screen-wake-1` 首次进入新页面。
+
 ### 卡顿恢复与输入保护（v0.10.0 起）
 
 - 截图系统调用在独立工作线程执行；前次调用未退出时不继续堆积任务。日志磁盘写入不持有界面和命令使用的日志锁。

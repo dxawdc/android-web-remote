@@ -85,6 +85,25 @@ vi.mock("./lib/remoteClient", () => ({
 import App from "./App";
 
 describe("device management", () => {
+  it.each([-5, "-5"])("waits for wake without restarting or reconnecting on screen-off code %s", async code => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "连接设备" }));
+    vi.useFakeTimers();
+    act(() => remote.listener?.({ type: "captureError", code, reason: "screenOff" }));
+    remote.send.mockClear();
+    act(() => vi.advanceTimersByTime(40000));
+    expect(screen.getByText("手机已息屏")).toBeTruthy();
+    expect(remote.connect).toHaveBeenCalledTimes(1);
+    expect(remote.send).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "重新请求画面" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "唤醒手机屏幕" }));
+    expect(remote.send).toHaveBeenCalledWith("wakeScreen");
+    expect(remote.send).toHaveBeenCalledWith("startStream");
+    expect(remote.send).not.toHaveBeenCalledWith("restartStream");
+    act(() => remote.listener?.({ type: "screenFrame", data: "test-frame" }));
+    expect(screen.getByAltText("手机实时屏幕")).toBeTruthy();
+    expect(screen.queryByText("手机已息屏")).toBeNull();
+  });
   afterEach(() => { cleanup(); vi.useRealTimers(); });
   beforeEach(() => {
     sessionStorage.clear();
